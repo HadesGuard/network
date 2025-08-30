@@ -123,6 +123,29 @@ async fn main() -> Result<()> {
 
             // Run the calibrator to get the metrics.
             println!("Starting calibration...");
+            
+            // Show GPU detection info for reference
+            let config = if let Ok(gpu_type) = std::env::var("GPU_TYPE") {
+                match gpu_type.to_lowercase().as_str() {
+                    "rtx4090" => ShardingConfig::rtx4090_optimized(),
+                    "rtx4080" => ShardingConfig::rtx4080_optimized(),
+                    "rtx3090" => ShardingConfig::rtx3090_optimized(),
+                    "rtx3080" => ShardingConfig::rtx3080_optimized(),
+                    "a100" => ShardingConfig::a100_optimized(),
+                    _ => {
+                        info!("Unknown GPU type: {}, using default configuration", gpu_type);
+                        ShardingConfig::default()
+                    }
+                }
+            } else {
+                ShardingConfig::default()
+            };
+            
+            println!("Detected {} GPU(s) for proving (GPU_TYPE: {})", 
+                config.num_gpus, 
+                std::env::var("GPU_TYPE").unwrap_or_else(|_| "auto-detect".to_string())
+            );
+            
             let calibrator = SinglePassCalibrator::new(
                 SPN_FIBONACCI_ELF.to_vec(),
                 stdin,
