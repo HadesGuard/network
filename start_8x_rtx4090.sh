@@ -46,6 +46,45 @@ BID="1.01"
 PRIVATE_KEY="bc93e74b7329f3c9d1f01e9ffffa0828a8c28805645211b32b95fbbe51e57627"
 PROVER_ADDRESS="0xF7A13273929a61077D09e8365De2F61c8A381C13"
 
+# Function to check configuration
+check_configuration() {
+    print_status "Checking 8x RTX 4090 competitive prover configuration..."
+    
+    # Check required environment variables
+    if [ -z "$PRIVATE_KEY" ] || [ "$PRIVATE_KEY" = "your-private-key" ]; then
+        print_error "PRIVATE_KEY not configured. Please edit this script and set your private key."
+        exit 1
+    fi
+    
+    if [ -z "$PROVER_ADDRESS" ] || [ "$PROVER_ADDRESS" = "your-prover-address" ]; then
+        print_error "PROVER_ADDRESS not configured. Please edit this script and set your prover address."
+        exit 1
+    fi
+    
+    # Check configuration file
+    if [ -f "8x_rtx4090_config.env" ]; then
+        print_success "8x RTX 4090 configuration file found"
+        source 8x_rtx4090_config.env
+    else
+        print_warning "8x RTX 4090 configuration file not found. Creating default..."
+        ./test_8x_rtx4090.sh
+    fi
+    
+    # Check environment variables
+    if [ -z "$CUDA_VISIBLE_DEVICES" ]; then
+        print_warning "CUDA_VISIBLE_DEVICES not set, using all GPUs"
+        export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
+    fi
+    
+    if [ -z "$SP1_PROVER" ]; then
+        print_warning "SP1_PROVER not set, using CUDA"
+        export SP1_PROVER="cuda"
+    fi
+    
+    print_success "Configuration check completed"
+    echo ""
+}
+
 # Function to check 8x RTX 4090 setup
 check_8x_rtx4090_setup() {
     print_status "Checking 8x RTX 4090 setup..."
