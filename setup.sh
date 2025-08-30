@@ -99,7 +99,16 @@ install_system_deps() {
         protobuf-c-compiler \
         libgrpc++-dev \
         libgrpc-dev \
-        grpc-tools
+        nodejs \
+        npm
+    
+    # Install grpc tools via npm as fallback
+    print_status "Installing grpc tools via npm..."
+    if command_exists npm; then
+        npm install -g grpc-tools
+    else
+        print_warning "npm not found, skipping grpc-tools installation"
+    fi
     
     print_success "System dependencies installed"
 }
