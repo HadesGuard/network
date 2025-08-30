@@ -65,31 +65,54 @@ impl Default for ShardingConfig {
 impl ShardingConfig {
     /// Auto-detect GPU configuration based on available GPUs
     fn detect_gpu_configuration() -> (usize, usize, u64, u64, u64) {
-        // Try to detect GPU count and type
-        // For now, use reasonable defaults that work for most setups
+        // Try to detect actual GPU count
+        let num_gpus = Self::detect_gpu_count();
         
-        // Default configuration that works for various GPUs
-        let num_gpus = 8; // Support up to 8 GPUs
+        // Use conservative defaults that work for most GPUs
         let shards_per_gpu = 4; // Conservative default
         let min_cycles = 2_000_000; // 2M cycles
         let max_cycles = 20_000_000; // 20M cycles  
         let checkpoint_interval = 2_000_000; // 2M cycles
         
-        // TODO: In real implementation, detect actual GPU types:
-        // - RTX 4090: 24GB VRAM, 6 shards per GPU, higher cycles
-        // - RTX 4080: 16GB VRAM, 4 shards per GPU, medium cycles
-        // - RTX 3090: 24GB VRAM, 6 shards per GPU, high cycles
-        // - RTX 3080: 10GB VRAM, 3 shards per GPU, lower cycles
-        // - A100: 40GB VRAM, 8 shards per GPU, very high cycles
-        // - V100: 32GB VRAM, 6 shards per GPU, high cycles
-        
         (num_gpus, shards_per_gpu, min_cycles, max_cycles, checkpoint_interval)
+    }
+    
+    /// Detect actual number of available GPUs
+    fn detect_gpu_count() -> usize {
+        use std::process::Command;
+        
+        // Try to get GPU count using nvidia-smi
+        if let Ok(output) = Command::new("nvidia-smi")
+            .args(&["-L"])
+            .output()
+        {
+            if output.status.success() {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                let gpu_count = stdout.lines().count();
+                if gpu_count > 0 {
+                    info!("Detected {} GPU(s) using nvidia-smi", gpu_count);
+                    return gpu_count;
+                }
+            }
+        }
+        
+        // Try to get GPU count from CUDA_VISIBLE_DEVICES
+        if let Ok(cuda_devices) = std::env::var("CUDA_VISIBLE_DEVICES") {
+            let gpu_count = cuda_devices.split(',').count();
+            info!("Using {} GPU(s) from CUDA_VISIBLE_DEVICES", gpu_count);
+            return gpu_count;
+        }
+        
+        // Fallback to 1 GPU
+        info!("Could not detect GPU count, defaulting to 1 GPU");
+        1
     }
     
     /// Create configuration optimized for RTX 4090
     pub fn rtx4090_optimized() -> Self {
+        let num_gpus = Self::detect_gpu_count();
         Self {
-            num_gpus: 8,
+            num_gpus,
             shards_per_gpu: 6, // RTX 4090 có 24GB VRAM
             min_cycles_per_shard: 5_000_000,
             max_cycles_per_shard: 50_000_000,
@@ -100,8 +123,9 @@ impl ShardingConfig {
     
     /// Create configuration optimized for RTX 4080
     pub fn rtx4080_optimized() -> Self {
+        let num_gpus = Self::detect_gpu_count();
         Self {
-            num_gpus: 8,
+            num_gpus,
             shards_per_gpu: 4, // RTX 4080 có 16GB VRAM
             min_cycles_per_shard: 3_000_000,
             max_cycles_per_shard: 30_000_000,
@@ -112,8 +136,9 @@ impl ShardingConfig {
     
     /// Create configuration optimized for A100
     pub fn a100_optimized() -> Self {
+        let num_gpus = Self::detect_gpu_count();
         Self {
-            num_gpus: 8,
+            num_gpus,
             shards_per_gpu: 8, // A100 có 40GB VRAM
             min_cycles_per_shard: 10_000_000,
             max_cycles_per_shard: 100_000_000,
@@ -124,8 +149,9 @@ impl ShardingConfig {
     
     /// Create configuration optimized for RTX 3090
     pub fn rtx3090_optimized() -> Self {
+        let num_gpus = Self::detect_gpu_count();
         Self {
-            num_gpus: 8,
+            num_gpus,
             shards_per_gpu: 6, // RTX 3090 có 24GB VRAM
             min_cycles_per_shard: 4_000_000,
             max_cycles_per_shard: 40_000_000,
@@ -136,8 +162,9 @@ impl ShardingConfig {
     
     /// Create configuration optimized for RTX 3080
     pub fn rtx3080_optimized() -> Self {
+        let num_gpus = Self::detect_gpu_count();
         Self {
-            num_gpus: 8,
+            num_gpus,
             shards_per_gpu: 3, // RTX 3080 có 10GB VRAM
             min_cycles_per_shard: 1_500_000,
             max_cycles_per_shard: 15_000_000,
