@@ -428,11 +428,6 @@ main() {
     echo "9. Create deployment scripts"
     echo ""
     
-    # Check if running as root
-    if [ "$EUID" -eq 0 ]; then
-        print_error "Please don't run as root. Use sudo for specific commands."
-        exit 1
-    fi
     
     # Parse arguments
     case "${1:-all}" in
