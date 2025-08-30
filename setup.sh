@@ -73,7 +73,7 @@ package_installed() {
 install_system_deps() {
     print_status "Checking and installing system dependencies..."
     
-    # Check essential packages
+    # Check essential packages (excluding Docker - handled separately)
     PACKAGES_TO_INSTALL=""
     ESSENTIAL_PACKAGES=(
         "build-essential"
@@ -104,8 +104,6 @@ install_system_deps() {
         "libgrpc-dev"
         "nodejs"
         "npm"
-        "docker.io"
-        "docker-compose"
     )
     
     print_status "Checking which packages need to be installed..."
@@ -140,11 +138,21 @@ install_system_deps() {
         print_warning "npm not found, skipping grpc-tools installation"
     fi
     
-    # Setup Docker if installed
-    if package_installed "docker.io"; then
-        print_status "Setting up Docker..."
+    print_success "System dependencies installed"
+    
+    # Install Docker separately to handle conflicts
+    install_docker
+}
+
+# Function to install Docker properly
+install_docker() {
+    print_status "Checking Docker installation..."
+    
+    # Check if Docker is already installed and working
+    if command_exists docker && docker --version >/dev/null 2>&1; then
+        print_success "Docker already installed: $(docker --version)"
         
-        # Check if Docker service is running
+        # Check if service is running
         if ! systemctl is-active --quiet docker; then
             print_status "Starting Docker service..."
             sudo systemctl enable docker
@@ -162,16 +170,55 @@ install_system_deps() {
             print_success "User already in docker group"
         fi
         
-        # Test Docker installation
-        if docker --version >/dev/null 2>&1; then
-            print_success "Docker installed successfully: $(docker --version)"
-        else
-            print_warning "Docker installation may need manual verification"
-        fi
+        return 0
     fi
     
-    print_success "System dependencies installed"
-}
+    print_status "Installing Docker..."
+    
+    # Remove conflicting packages
+    print_status "Removing conflicting Docker packages..."
+    sudo apt remove -y docker docker-engine docker.io containerd runc containerd.io 2>/dev/null || true
+    sudo apt autoremove -y
+    
+    # Add Docker's official GPG key
+    print_status "Adding Docker repository..."
+    sudo mkdir -p /etc/apt/keyrings
+    if [ ! -f /etc/apt/keyrings/docker.gpg ]; then
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+    fi
+    
+    # Add Docker repository
+    if [ ! -f /etc/apt/sources.list.d/docker.list ]; then
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+    fi
+    
+    # Update package list
+    sudo apt update
+    
+    # Install Docker Engine
+    print_status "Installing Docker Engine..."
+    sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    
+    # Start and enable Docker
+    print_status "Starting Docker service..."
+    sudo systemctl enable docker
+    sudo systemctl start docker
+    
+    # Add user to docker group
+    print_status "Adding user to docker group..."
+    sudo usermod -aG docker $USER
+    
+    # Test Docker installation
+    if docker --version >/dev/null 2>&1; then
+        print_success "Docker installed successfully: $(docker --version)"
+        print_success "Docker Compose installed: $(docker compose version)"
+    else
+        print_error "Docker installation failed"
+        return 1
+    fi
+    
+    print_warning "You may need to log out and back in for Docker group changes to take effect"
+    print_success "Docker installation completed"
 
 # Function to install Rust
 install_rust() {
@@ -731,6 +778,10 @@ main() {
             install_sp1
             test_sp1
             ;;
+        "docker")
+            print_status "Installing Docker only..."
+            install_docker
+            ;;
         "build")
             print_status "Building only..."
             build_sharded_prover
@@ -757,6 +808,7 @@ main() {
             echo "  clean   - Clean source code only (optional)"
             echo "  deps    - Install dependencies only (includes SP1)"
             echo "  sp1     - Install SP1 zkVM only"
+            echo "  docker  - Install Docker only (fixes conflicts)"
             echo "  build   - Build ShardedProver only (includes SP1 tests)"
             echo "  all     - Complete setup without cleaning (default)"
             echo "  help    - Show this help"
@@ -768,6 +820,7 @@ main() {
             echo "Examples:"
             echo "  $0                           # Complete setup (no cleaning)"
             echo "  $0 clean                     # Clean source code only"
+            echo "  $0 docker                    # Fix Docker conflicts and install"
             echo "  $0 sp1                       # Install SP1 only"
             echo "  GITHUB_TOKEN=xxx $0 sp1      # Install SP1 with GitHub token"
             echo ""
