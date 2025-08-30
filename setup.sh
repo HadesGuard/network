@@ -64,68 +64,110 @@ clean_source() {
     print_success "Source cleaned"
 }
 
+# Function to check if package is installed
+package_installed() {
+    dpkg -l "$1" 2>/dev/null | grep -q "^ii"
+}
+
 # Function to install system dependencies
 install_system_deps() {
-    print_status "Installing system dependencies..."
+    print_status "Checking and installing system dependencies..."
     
-    # Update package list
-    sudo apt update
+    # Check essential packages
+    PACKAGES_TO_INSTALL=""
+    ESSENTIAL_PACKAGES=(
+        "build-essential"
+        "cmake"
+        "pkg-config"
+        "libssl-dev"
+        "git"
+        "curl"
+        "wget"
+        "htop"
+        "bc"
+        "jq"
+        "tmux"
+        "vim"
+        "nano"
+        "tree"
+        "unzip"
+        "zip"
+        "software-properties-common"
+        "apt-transport-https"
+        "ca-certificates"
+        "gnupg"
+        "lsb-release"
+        "protobuf-compiler"
+        "libprotobuf-dev"
+        "protobuf-c-compiler"
+        "libgrpc++-dev"
+        "libgrpc-dev"
+        "nodejs"
+        "npm"
+        "docker.io"
+        "docker-compose"
+    )
     
-    # Install essential packages
-    sudo apt install -y \
-        build-essential \
-        cmake \
-        pkg-config \
-        libssl-dev \
-        git \
-        curl \
-        wget \
-        htop \
-        bc \
-        jq \
-        tmux \
-        vim \
-        nano \
-        tree \
-        unzip \
-        zip \
-        software-properties-common \
-        apt-transport-https \
-        ca-certificates \
-        gnupg \
-        lsb-release \
-        protobuf-compiler \
-        libprotobuf-dev \
-        protobuf-c-compiler \
-        libgrpc++-dev \
-        libgrpc-dev \
-        nodejs \
-        npm \
-        docker.io \
-        docker-compose
+    print_status "Checking which packages need to be installed..."
+    for package in "${ESSENTIAL_PACKAGES[@]}"; do
+        if ! package_installed "$package"; then
+            PACKAGES_TO_INSTALL="$PACKAGES_TO_INSTALL $package"
+            print_status "Need to install: $package"
+        else
+            print_success "$package already installed"
+        fi
+    done
     
-    # Install grpc tools via npm as fallback
-    print_status "Installing grpc tools via npm..."
+    if [ -n "$PACKAGES_TO_INSTALL" ]; then
+        print_status "Updating package list..."
+        sudo apt update
+        
+        print_status "Installing missing packages:$PACKAGES_TO_INSTALL"
+        sudo apt install -y $PACKAGES_TO_INSTALL
+    else
+        print_success "All essential packages already installed"
+    fi
+    
+    # Check and install grpc tools via npm
     if command_exists npm; then
-        npm install -g grpc-tools
+        if npm list -g grpc-tools >/dev/null 2>&1; then
+            print_success "grpc-tools already installed globally"
+        else
+            print_status "Installing grpc tools via npm..."
+            npm install -g grpc-tools
+        fi
     else
         print_warning "npm not found, skipping grpc-tools installation"
     fi
     
-    # Setup Docker
-    print_status "Setting up Docker..."
-    sudo systemctl enable docker
-    sudo systemctl start docker
-    
-    # Add user to docker group
-    print_status "Adding user to docker group..."
-    sudo usermod -aG docker $USER
-    
-    # Test Docker installation
-    if docker --version >/dev/null 2>&1; then
-        print_success "Docker installed successfully: $(docker --version)"
-    else
-        print_warning "Docker installation may need manual verification"
+    # Setup Docker if installed
+    if package_installed "docker.io"; then
+        print_status "Setting up Docker..."
+        
+        # Check if Docker service is running
+        if ! systemctl is-active --quiet docker; then
+            print_status "Starting Docker service..."
+            sudo systemctl enable docker
+            sudo systemctl start docker
+        else
+            print_success "Docker service already running"
+        fi
+        
+        # Check if user is in docker group
+        if ! groups $USER | grep -q docker; then
+            print_status "Adding user to docker group..."
+            sudo usermod -aG docker $USER
+            print_warning "You may need to log out and back in for Docker group changes to take effect"
+        else
+            print_success "User already in docker group"
+        fi
+        
+        # Test Docker installation
+        if docker --version >/dev/null 2>&1; then
+            print_success "Docker installed successfully: $(docker --version)"
+        else
+            print_warning "Docker installation may need manual verification"
+        fi
     fi
     
     print_success "System dependencies installed"
@@ -271,31 +313,64 @@ test_sp1() {
 
 # Function to install CUDA
 install_cuda() {
-    print_status "Installing CUDA..."
+    print_status "Checking CUDA installation..."
     
+    # Check if CUDA is already installed and working
     if command_exists nvcc; then
+        CUDA_VERSION=$(nvcc --version | grep "release" | sed 's/.*release \([0-9]\+\.[0-9]\+\).*/\1/')
         print_success "CUDA already installed: $(nvcc --version | head -n1)"
-        return 0
+        
+        # Check if it's version 12.5 or higher
+        if [ -n "$CUDA_VERSION" ]; then
+            MAJOR_VERSION=$(echo $CUDA_VERSION | cut -d. -f1)
+            MINOR_VERSION=$(echo $CUDA_VERSION | cut -d. -f2)
+            if [ "$MAJOR_VERSION" -gt 12 ] || ([ "$MAJOR_VERSION" -eq 12 ] && [ "$MINOR_VERSION" -ge 5 ]); then
+                print_success "CUDA version $CUDA_VERSION meets requirements (>=12.5)"
+                return 0
+            else
+                print_warning "CUDA version $CUDA_VERSION is older than required 12.5, will upgrade..."
+            fi
+        fi
     fi
     
-    # Remove old CUDA installations
-    print_status "Removing old CUDA installations..."
-    sudo apt remove --purge cuda* nvidia-cuda* -y 2>/dev/null || true
-    sudo apt autoremove -y
-    
-    # Add NVIDIA repository
-    print_status "Adding NVIDIA repository..."
-    wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb
-    sudo dpkg -i cuda-keyring_1.1-1_all.deb
-    sudo apt update
-    
-    # Install CUDA 12.5+
     print_status "Installing CUDA 12.5+..."
-    sudo apt install -y cuda-toolkit-12-5
     
-    # Set environment variables
-    print_status "Setting CUDA environment variables..."
-    cat >> ~/.bashrc << EOF
+    # Check if CUDA keyring is already installed
+    if ! package_installed "cuda-keyring"; then
+        print_status "Adding NVIDIA repository..."
+        if [ ! -f "cuda-keyring_1.1-1_all.deb" ]; then
+            wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb
+        fi
+        sudo dpkg -i cuda-keyring_1.1-1_all.deb
+        sudo apt update
+    else
+        print_success "NVIDIA repository already configured"
+    fi
+    
+    # Remove old CUDA installations only if needed
+    if command_exists nvcc && [ -n "$CUDA_VERSION" ]; then
+        MAJOR_VERSION=$(echo $CUDA_VERSION | cut -d. -f1)
+        MINOR_VERSION=$(echo $CUDA_VERSION | cut -d. -f2)
+        if [ "$MAJOR_VERSION" -lt 12 ] || ([ "$MAJOR_VERSION" -eq 12 ] && [ "$MINOR_VERSION" -lt 5 ]); then
+            print_status "Removing old CUDA installations..."
+            sudo apt remove --purge cuda* nvidia-cuda* -y 2>/dev/null || true
+            sudo apt autoremove -y
+        fi
+    fi
+    
+    # Install CUDA 12.5+ if not already installed
+    if ! package_installed "cuda-toolkit-12-5"; then
+        print_status "Installing CUDA 12.5+..."
+        sudo apt install -y cuda-toolkit-12-5
+    else
+        print_success "CUDA toolkit 12.5 already installed"
+    fi
+    
+    # Set environment variables if not already set
+    print_status "Checking CUDA environment variables..."
+    if ! grep -q "CUDA_HOME" ~/.bashrc; then
+        print_status "Setting CUDA environment variables..."
+        cat >> ~/.bashrc << EOF
 
 # CUDA Environment
 export PATH=/usr/local/cuda/bin:\$PATH
@@ -306,6 +381,10 @@ export CUDA_HOME=/usr/local/cuda
 export PATH="\$HOME/.sp1/bin:\$PATH"
 export PATH="\$HOME/.cargo/bin:\$PATH"
 EOF
+        print_success "CUDA environment variables added to ~/.bashrc"
+    else
+        print_success "CUDA environment variables already configured"
+    fi
 
     # Source environment
     source ~/.bashrc
@@ -315,10 +394,24 @@ EOF
 
 # Function to fix Cargo configuration
 fix_cargo_config() {
-    print_status "Fixing Cargo configuration..."
+    print_status "Checking Cargo configuration..."
     
     # Create Cargo config directory
     mkdir -p ~/.cargo
+    
+    # Check if config already exists and is optimized
+    if [ -f ~/.cargo/config.toml ] && grep -q "target-cpu=native" ~/.cargo/config.toml; then
+        print_success "Cargo configuration already optimized"
+        return 0
+    fi
+    
+    print_status "Creating optimized Cargo configuration..."
+    
+    # Backup existing config if it exists
+    if [ -f ~/.cargo/config.toml ]; then
+        print_status "Backing up existing Cargo config..."
+        cp ~/.cargo/config.toml ~/.cargo/config.toml.backup.$(date +%s)
+    fi
     
     # Create optimized Cargo config
     cat > ~/.cargo/config.toml << EOF
@@ -371,28 +464,60 @@ EOF
 
 # Function to increase system limits
 increase_system_limits() {
+    print_status "Checking system limits..."
+    
+    # Check if limits are already configured
+    if grep -q "nofile 65536" /etc/security/limits.conf && grep -q "fs.file-max = 65536" /etc/sysctl.conf; then
+        print_success "System limits already configured"
+        return 0
+    fi
+    
     print_status "Increasing system limits..."
     
-    # Increase file descriptor limits
-    echo "* soft nofile 65536" | sudo tee -a /etc/security/limits.conf
-    echo "* hard nofile 65536" | sudo tee -a /etc/security/limits.conf
+    # Increase file descriptor limits (only if not already set)
+    if ! grep -q "nofile 65536" /etc/security/limits.conf; then
+        print_status "Setting file descriptor limits..."
+        echo "* soft nofile 65536" | sudo tee -a /etc/security/limits.conf
+        echo "* hard nofile 65536" | sudo tee -a /etc/security/limits.conf
+    fi
     
-    # Increase process limits
-    echo "* soft nproc 65536" | sudo tee -a /etc/security/limits.conf
-    echo "* hard nproc 65536" | sudo tee -a /etc/security/limits.conf
+    # Increase process limits (only if not already set)
+    if ! grep -q "nproc 65536" /etc/security/limits.conf; then
+        print_status "Setting process limits..."
+        echo "* soft nproc 65536" | sudo tee -a /etc/security/limits.conf
+        echo "* hard nproc 65536" | sudo tee -a /etc/security/limits.conf
+    fi
     
-    # Increase kernel limits
-    echo "fs.file-max = 65536" | sudo tee -a /etc/sysctl.conf
-    echo "kernel.pid_max = 65536" | sudo tee -a /etc/sysctl.conf
-    
-    # Apply changes
-    sudo sysctl -p
+    # Increase kernel limits (only if not already set)
+    if ! grep -q "fs.file-max = 65536" /etc/sysctl.conf; then
+        print_status "Setting kernel limits..."
+        echo "fs.file-max = 65536" | sudo tee -a /etc/sysctl.conf
+        echo "kernel.pid_max = 65536" | sudo tee -a /etc/sysctl.conf
+        
+        # Apply changes
+        sudo sysctl -p
+    fi
     
     print_success "System limits increased"
 }
 
 # Function to build ShardedProver
 build_sharded_prover() {
+    print_status "Checking ShardedProver binary..."
+    
+    # Check if binary already exists and is recent
+    if [ -f "target/release/spn-node" ]; then
+        print_success "Binary already exists: $(ls -lh target/release/spn-node | awk '{print $5, $6, $7, $8, $9}')"
+        
+        # Check if binary is newer than source files
+        if [ "target/release/spn-node" -nt "Cargo.toml" ] && [ "target/release/spn-node" -nt "bin/node/src/main.rs" ]; then
+            print_success "Binary is up to date, skipping build"
+            return 0
+        else
+            print_status "Source files are newer than binary, rebuilding..."
+        fi
+    fi
+    
     print_status "Building ShardedProver..."
     
     # Build optimized binary
@@ -528,7 +653,6 @@ display_setup_summary() {
     echo "=========================================="
     echo ""
     echo "Setup Summary:"
-    echo "• Source code cleaned"
     echo "• System dependencies installed"
     echo "• Rust installed and configured"
     echo "• SP1 zkVM installed and verified"
@@ -574,16 +698,15 @@ main() {
     echo "=========================================="
     echo ""
     echo "This script will:"
-    echo "1. Clean source code"
-    echo "2. Install system dependencies"
-    echo "3. Install Rust"
-    echo "4. Install SP1 zkVM"
-    echo "5. Install CUDA 12.5+"
-    echo "6. Fix Cargo configuration"
-    echo "7. Increase system limits"
-    echo "8. Build ShardedProver"
-    echo "9. Test binary and SP1"
-    echo "10. Create deployment scripts"
+    echo "1. Install system dependencies"
+    echo "2. Install Rust"
+    echo "3. Install SP1 zkVM"
+    echo "4. Install CUDA 12.5+"
+    echo "5. Fix Cargo configuration"
+    echo "6. Increase system limits"
+    echo "7. Build ShardedProver"
+    echo "8. Test binary and SP1"
+    echo "9. Create deployment scripts"
     echo ""
     
     
@@ -616,7 +739,6 @@ main() {
             ;;
         "all")
             print_status "Running complete setup..."
-            clean_source
             install_system_deps
             install_rust
             install_sp1
@@ -632,11 +754,11 @@ main() {
             echo "Usage: $0 [command]"
             echo ""
             echo "Commands:"
-            echo "  clean   - Clean source code only"
+            echo "  clean   - Clean source code only (optional)"
             echo "  deps    - Install dependencies only (includes SP1)"
             echo "  sp1     - Install SP1 zkVM only"
             echo "  build   - Build ShardedProver only (includes SP1 tests)"
-            echo "  all     - Complete setup (default)"
+            echo "  all     - Complete setup without cleaning (default)"
             echo "  help    - Show this help"
             echo ""
             echo "Environment Variables:"
@@ -644,7 +766,8 @@ main() {
             echo "  GH_TOKEN     - Alternative GitHub token variable"
             echo ""
             echo "Examples:"
-            echo "  $0                           # Complete setup"
+            echo "  $0                           # Complete setup (no cleaning)"
+            echo "  $0 clean                     # Clean source code only"
             echo "  $0 sp1                       # Install SP1 only"
             echo "  GITHUB_TOKEN=xxx $0 sp1      # Install SP1 with GitHub token"
             echo ""
