@@ -1,63 +1,74 @@
-# Succinct Prover Network
+# 🚀 ShardedProver Multi-GPU Setup
 
-<div>
-  <img src=".github/assets/image.png" alt="Succinct Banner" />
-  &nbsp;
-</div>
+## ✅ One-Click Setup
 
-This is the monorepo for the Succinct Prover Network, a protocol on Ethereum that coordinates a distributed network of provers to generate zero knowledge proofs for any piece of software. This protocol creates a two-sided marketplace between provers and requesters, enabling anyone to receive proofs for applications such as blockchains, bridges, oracles, AI agents, video games, and more.
-
-For more details, refer to the [network](https://docs.succinct.xyz/docs/network/introduction) and [provers](https://docs.succinct.xyz/docs/provers/introduction) section of our documentation.
-
-## Overview
-
-This repository offers the following components:
-
-- **Contracts**: Solidity smart contracts for the protocol, including the $PROVE ERC20 token,
-staking mechanisms, and the network's settlement contract.
-- **Verifiable Application**: The network's state transition function, handling tasks such as balance
-management, proof clearing, and more, is implemented as verifiable RISC-V programs, proven using SP1.
-- **Reference Prover**: We provide a reference prover implementation that demonstrates a basic
-interaction with the network, including bidding and generating a proof.
-
-## Getting Started
-
-To get started, you will need to install the following prerequisites:
-
-- [Foundry](https://book.getfoundry.sh/)
-- [Rust](https://www.rust-lang.org/tools/install)
-- [SP1](https://docs.succinct.xyz/docs/sp1/getting-started/install)
-
-Then, clone the repository:
+Chỉ cần chạy một script duy nhất để setup tất cả:
 
 ```bash
-git clone https://github.com/succinctlabs/network.git
-cd network
+./setup.sh
 ```
 
-To build the prover node and rust crates, run:
+## 📋 What the script does
+
+1. **Clean source code** - Xóa build artifacts cũ
+2. **Install system dependencies** - Cài packages cần thiết
+3. **Install Rust** - Cài Rust và components
+4. **Install CUDA 12.5+** - Cài CUDA toolkit
+5. **Fix Cargo config** - Optimize Cargo configuration
+6. **Increase system limits** - Tăng file descriptors
+7. **Build ShardedProver** - Build binary optimized
+8. **Test binary** - Verify binary hoạt động
+9. **Create deployment scripts** - Tạo scripts deploy
+
+## 🎯 Supported GPU Types
+
+- **RTX 4090**: 24GB VRAM, 6 shards per GPU
+- **RTX 4080**: 16GB VRAM, 4 shards per GPU
+- **RTX 3090**: 24GB VRAM, 6 shards per GPU
+- **RTX 3080**: 10GB VRAM, 3 shards per GPU
+- **A100**: 40GB VRAM, 8 shards per GPU
+- **Auto-detect**: Tự động detect GPU type
+
+## 🚀 Quick Commands
 
 ```bash
-cargo build --release
-./target/release/spn-node --help
+# Complete setup
+./setup.sh
+
+# Clean only
+./setup.sh clean
+
+# Install dependencies only
+./setup.sh deps
+
+# Build only
+./setup.sh build
+
+# Help
+./setup.sh help
 ```
 
-To build and test the contracts, run:
+## 📦 After Setup
+
+Script sẽ tạo:
+- `target/release/spn-node` - Binary đã build
+- `deploy.sh` - Script deploy lên server
+- `test.sh` - Script test trên server
+
+## 🎯 Usage
 
 ```bash
-cd contracts
-forge test
+# Deploy to server
+./deploy.sh <server-ip>
+
+# Test on server
+./test.sh <server-ip>
+
+# Run with specific GPU
+export GPU_TYPE=rtx4090
+./spn-node prove --rpc-url https://rpc.succinct.xyz --private-key YOUR_PRIVATE_KEY --throughput 1000000 --bid 1000000000000000000 --prover YOUR_PROVER_ADDRESS
 ```
 
-## Security
+## 🎉 That's it!
 
-The Succinct Prover Network has undergone audits from [Trail of Bits](https://www.trailofbits.com/) and [Cantina](https://cantina.xyz/). The audit reports are available [here](./audits).
-
-## License
-
-Licensed under either of
-
-- Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or <http://www.apache.org/licenses/LICENSE-2.0>)
-- MIT license ([LICENSE-MIT](LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
-
-at your option.
+Chỉ cần chạy `./setup.sh` và mọi thứ sẽ được setup tự động!
