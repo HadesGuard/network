@@ -1,0 +1,21 @@
+# Test Programs Cargo.toml
+# Use this to compile and run test programs
+
+[package]
+name = "test-programs"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "test_programs"
+path = "test_programs.rs"
+
+[[bin]]
+name = "test_multi_gpu_proving"
+path = "test_multi_gpu_proving.rs"
+
+[dependencies]
+sp1-sdk = { version = "3.0.0" }
+spn-node-core = { path = "crates/node/core" }
+tokio = { version = "1.0", features = ["full"] }
+anyhow = "1.0"

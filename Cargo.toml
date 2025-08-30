@@ -23,6 +23,9 @@ members = [
     "programs/examples/is-prime",
     "programs/vapp/aggregation",
     "programs/vapp/stf",
+    "programs/test-simple",
+    "programs/test-medium", 
+    "programs/test-complex",
 ]
 resolver = "2"
 
