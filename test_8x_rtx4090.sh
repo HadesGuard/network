@@ -44,6 +44,11 @@ command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
+# Function to get clean GPU count
+get_gpu_count() {
+    nvidia-smi --query-gpu=count --format=csv,noheader,nounits | head -1 | tr -d ' '
+}
+
 # Function to detect 8x RTX 4090 setup
 detect_8x_rtx4090() {
     print_status "Detecting 8x RTX 4090 setup..."
@@ -55,7 +60,7 @@ detect_8x_rtx4090() {
     
     # Get GPU count properly
     local gpu_count
-    gpu_count=$(nvidia-smi --query-gpu=count --format=csv,noheader,nounits | tr -d ' ')
+    gpu_count=$(get_gpu_count)
     print_rtx4090 "Detected $gpu_count GPU(s)"
     
     if [ "$gpu_count" -lt 8 ]; then
@@ -70,9 +75,15 @@ detect_8x_rtx4090() {
     local total_memory=0
     local total_free_memory=0
     
-    # Get GPU info and process it properly
-    nvidia-smi --query-gpu=index,name,memory.total,memory.free,utilization.gpu,temperature.gpu \
-               --format=csv,noheader,nounits | while IFS=',' read -r index name memory_total memory_free utilization temp; do
+    # Get GPU info line by line
+    for ((i=0; i<gpu_count; i++)); do
+        local gpu_info
+        gpu_info=$(nvidia-smi --query-gpu=index,name,memory.total,memory.free,utilization.gpu,temperature.gpu \
+                   --format=csv,noheader,nounits | sed -n "$((i+1))p")
+        
+        # Parse the line
+        local index name memory_total memory_free utilization temp
+        IFS=',' read -r index name memory_total memory_free utilization temp <<< "$gpu_info"
         
         # Clean up variables
         index=$(echo "$index" | tr -d ' ')
@@ -94,14 +105,11 @@ detect_8x_rtx4090() {
         echo "  Utilization: ${utilization}%"
         echo "  Temperature: ${temp}°C"
         echo ""
+        
+        # Add to totals
+        total_memory=$((total_memory + memory_total))
+        total_free_memory=$((total_free_memory + memory_free))
     done
-    
-    # Calculate totals using awk to avoid subshell issues
-    total_memory=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits | awk '{sum+=$1} END {print sum}')
-    total_free_memory=$(nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits | awk '{sum+=$1} END {print sum}')
-    
-    # Get RTX 4090 count properly
-    rtx4090_count=$(nvidia-smi --query-gpu=name --format=csv,noheader,nounits | grep -c "RTX 4090" || echo "0")
     
     echo "8x RTX 4090 Performance Summary:"
     echo "==============================="
@@ -132,12 +140,23 @@ create_8x_rtx4090_config() {
     print_status "Creating 8x RTX 4090 configuration..."
     
     local gpu_count
-    gpu_count=$(nvidia-smi --query-gpu=count --format=csv,noheader,nounits | tr -d ' ')
+    gpu_count=$(get_gpu_count)
     local device_list=$(seq -s, 0 $((gpu_count-1)))
-    local total_memory
-    total_memory=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits | awk '{sum+=$1} END {print sum}')
-    local total_free_memory
-    total_free_memory=$(nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits | awk '{sum+=$1} END {print sum}')
+    
+    # Calculate memory totals
+    local total_memory=0
+    local total_free_memory=0
+    
+    for ((i=0; i<gpu_count; i++)); do
+        local gpu_info
+        gpu_info=$(nvidia-smi --query-gpu=memory.total,memory.free --format=csv,noheader,nounits | sed -n "$((i+1))p")
+        local memory_total memory_free
+        IFS=',' read -r memory_total memory_free <<< "$gpu_info"
+        memory_total=$(echo "$memory_total" | tr -d ' ')
+        memory_free=$(echo "$memory_free" | tr -d ' ')
+        total_memory=$((total_memory + memory_total))
+        total_free_memory=$((total_free_memory + memory_free))
+    done
     
     # Calculate optimal shards per GPU for 8x RTX 4090
     local shards_per_gpu=4  # RTX 4090 can handle 4 shards with 24GB VRAM
@@ -230,12 +249,12 @@ test_8x_rtx4090_gpu_access() {
     print_status "Testing 8x RTX 4090 GPU access for sharding..."
     
     local gpu_count
-    gpu_count=$(nvidia-smi --query-gpu=count --format=csv,noheader,nounits | tr -d ' ')
+    gpu_count=$(get_gpu_count)
     
     # Test individual GPU access for sharding
     for ((i=0; i<gpu_count; i++)); do
         local visible_count
-        visible_count=$(CUDA_VISIBLE_DEVICES=$i nvidia-smi --query-gpu=count --format=csv,noheader,nounits | tr -d ' ')
+        visible_count=$(CUDA_VISIBLE_DEVICES=$i nvidia-smi --query-gpu=count --format=csv,noheader,nounits | head -1 | tr -d ' ')
         if [ "$visible_count" -eq 1 ]; then
             print_success "GPU $i accessible for 8x RTX 4090 sharding"
         else
@@ -247,7 +266,7 @@ test_8x_rtx4090_gpu_access() {
     # Test multi-GPU access for coordination
     local device_list=$(seq -s, 0 $((gpu_count-1)))
     local visible_count
-    visible_count=$(CUDA_VISIBLE_DEVICES=$device_list nvidia-smi --query-gpu=count --format=csv,noheader,nounits | tr -d ' ')
+    visible_count=$(CUDA_VISIBLE_DEVICES=$device_list nvidia-smi --query-gpu=count --format=csv,noheader,nounits | head -1 | tr -d ' ')
     if [ "$visible_count" -eq "$gpu_count" ]; then
         print_success "All $gpu_count GPUs accessible for 8x RTX 4090 coordination"
     else
@@ -289,7 +308,7 @@ build_8x_rtx4090_prover() {
 # Function to display 8x RTX 4090 performance expectations
 display_8x_rtx4090_performance() {
     local gpu_count
-    gpu_count=$(nvidia-smi --query-gpu=count --format=csv,noheader,nounits | tr -d ' ')
+    gpu_count=$(get_gpu_count)
     
     echo ""
     echo "=========================================="
