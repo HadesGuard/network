@@ -46,19 +46,6 @@ BID="1.01"
 PRIVATE_KEY="bc93e74b7329f3c9d1f01e9ffffa0828a8c28805645211b32b95fbbe51e57627"
 PROVER_ADDRESS="0xF7A13273929a61077D09e8365De2F61c8A381C13"
 
-# Check if configuration is set
-check_configuration() {
-    if [ "$PRIVATE_KEY" = "bc93e74b7329f3c9d1f01e9ffffa0828a8c28805645211b32b95fbbe51e57627" ] || [ "$PROVER_ADDRESS" = "0xF7A13273929a61077D09e8365De2F61c8A381C13" ]; then
-        print_error "Please configure PRIVATE_KEY and PROVER_ADDRESS in this script first!"
-        echo ""
-        echo "Edit start_8x_rtx4090.sh and set:"
-        echo "  PRIVATE_KEY=\"bc93e74b7329f3c9d1f01e9ffffa0828a8c28805645211b32b95fbbe51e57627\""
-        echo "  PROVER_ADDRESS=\"0xF7A13273929a61077D09e8365De2F61c8A381C13\""
-        echo ""
-        exit 1
-    fi
-}
-
 # Function to check 8x RTX 4090 setup
 check_8x_rtx4090_setup() {
     print_status "Checking 8x RTX 4090 setup..."
