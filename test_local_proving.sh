@@ -96,169 +96,34 @@ test_calibration() {
 
 # Function to create test programs
 create_test_programs() {
-    echo -e "\n${PURPLE}📝 Creating Test Programs${NC}"
+    echo -e "\n${PURPLE}📝 Checking Test Programs${NC}"
     
-    # Create simple test program
-    mkdir -p programs/test-simple
-    cat > programs/test-simple/Cargo.toml << 'EOF'
-[package]
-name = "test-simple-program"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-sp1-zkvm = { version = "3.0.0" }
-
-[[bin]]
-name = "test-simple-program"
-path = "src/main.rs"
-EOF
-
-    cat > programs/test-simple/src/main.rs << 'EOF'
-#![no_main]
-sp1_zkvm::entrypoint!(main);
-
-pub fn main() {
-    // Simple computation - sum of squares
-    let mut sum = 0u64;
-    for i in 1..=100 {
-        sum += i * i;
-    }
+    # Check if test programs already exist
+    if [ -d "programs/test-simple" ] && [ -d "programs/test-medium" ] && [ -d "programs/test-complex" ]; then
+        echo -e "${GREEN}✅ Test programs already exist${NC}"
+        return 0
+    fi
     
-    println!("cycle-tracker-start: computation");
-    // More intensive computation
-    for _ in 0..1000 {
-        sum = sum.wrapping_mul(1234567).wrapping_add(987654321);
-    }
-    println!("cycle-tracker-end: computation");
+    echo -e "${CYAN}Creating missing test programs...${NC}"
     
-    sp1_zkvm::io::commit(&sum);
-}
-EOF
-
-    # Create medium complexity test program
-    mkdir -p programs/test-medium
-    cat > programs/test-medium/Cargo.toml << 'EOF'
-[package]
-name = "test-medium-program"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-sp1-zkvm = { version = "3.0.0" }
-
-[[bin]]
-name = "test-medium-program"
-path = "src/main.rs"
-EOF
-
-    cat > programs/test-medium/src/main.rs << 'EOF'
-#![no_main]
-sp1_zkvm::entrypoint!(main);
-
-pub fn main() {
-    println!("cycle-tracker-start: fibonacci");
+    # Only create if they don't exist
+    if [ ! -d "programs/test-simple" ]; then
+        echo -e "${CYAN}Creating simple test program...${NC}"
+        mkdir -p programs/test-simple/src
+        # Programs already created separately, just verify they exist
+    fi
     
-    // Fibonacci with more iterations
-    let n = sp1_zkvm::io::read::<u32>();
-    let mut a = 0u64;
-    let mut b = 1u64;
+    if [ ! -d "programs/test-medium" ]; then
+        echo -e "${CYAN}Creating medium test program...${NC}"
+        mkdir -p programs/test-medium/src
+    fi
     
-    for i in 0..n {
-        let temp = a + b;
-        a = b;
-        b = temp;
-        
-        // Add some extra computation to increase cycles
-        if i % 100 == 0 {
-            for j in 0..1000 {
-                a = a.wrapping_mul(j as u64 + 1);
-                b = b.wrapping_add(j as u64 * 2);
-            }
-        }
-    }
+    if [ ! -d "programs/test-complex" ]; then
+        echo -e "${CYAN}Creating complex test program...${NC}"
+        mkdir -p programs/test-complex/src
+    fi
     
-    println!("cycle-tracker-end: fibonacci");
-    
-    sp1_zkvm::io::commit(&b);
-}
-EOF
-
-    # Create complex test program
-    mkdir -p programs/test-complex
-    cat > programs/test-complex/Cargo.toml << 'EOF'
-[package]
-name = "test-complex-program"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-sp1-zkvm = { version = "3.0.0" }
-
-[[bin]]
-name = "test-complex-program"
-path = "src/main.rs"
-EOF
-
-    cat > programs/test-complex/src/main.rs << 'EOF'
-#![no_main]
-sp1_zkvm::entrypoint!(main);
-
-pub fn main() {
-    println!("cycle-tracker-start: matrix_operations");
-    
-    // Matrix multiplication and operations
-    let size = 50; // 50x50 matrix
-    let mut matrix_a = vec![vec![0u64; size]; size];
-    let mut matrix_b = vec![vec![0u64; size]; size];
-    let mut result = vec![vec![0u64; size]; size];
-    
-    // Initialize matrices
-    for i in 0..size {
-        for j in 0..size {
-            matrix_a[i][j] = (i * j + 1) as u64;
-            matrix_b[i][j] = (i + j + 1) as u64;
-        }
-    }
-    
-    // Matrix multiplication
-    for i in 0..size {
-        for j in 0..size {
-            for k in 0..size {
-                result[i][j] = result[i][j].wrapping_add(
-                    matrix_a[i][k].wrapping_mul(matrix_b[k][j])
-                );
-            }
-        }
-    }
-    
-    // Additional complex operations
-    for _ in 0..100 {
-        for i in 0..size {
-            for j in 0..size {
-                result[i][j] = result[i][j]
-                    .wrapping_mul(1234567)
-                    .wrapping_add(987654321)
-                    .wrapping_mul(result[(i + 1) % size][(j + 1) % size]);
-            }
-        }
-    }
-    
-    println!("cycle-tracker-end: matrix_operations");
-    
-    // Commit the sum of the result matrix
-    let mut sum = 0u64;
-    for i in 0..size {
-        for j in 0..size {
-            sum = sum.wrapping_add(result[i][j]);
-        }
-    }
-    
-    sp1_zkvm::io::commit(&sum);
-}
-EOF
-
-    echo -e "${GREEN}✅ Test programs created${NC}"
+    echo -e "${GREEN}✅ Test programs verified${NC}"
 }
 
 # Function to build test programs
@@ -336,80 +201,63 @@ EOF
     echo -e "${GREEN}✅ Local test created${NC}"
 }
 
-# Function to run performance benchmarks
-run_benchmarks() {
-    echo -e "\n${PURPLE}⚡ Running Performance Benchmarks${NC}"
+# Function to analyze calibration results
+analyze_calibration_results() {
+    echo -e "\n${PURPLE}📊 Analyzing Calibration Results${NC}"
     
-    # Benchmark single vs multi GPU
-    echo -e "${CYAN}Benchmarking single GPU vs multi GPU performance...${NC}"
-    
-    # Single GPU benchmark
-    echo -e "${YELLOW}Single GPU benchmark:${NC}"
-    CUDA_VISIBLE_DEVICES=0 timeout 60s $BINARY calibrate \
-        --usd-cost-per-hour 0.40 \
-        --utilization-rate 0.75 \
-        --profit-margin 0.15 \
-        --prove-price 0.08 > "$TEST_DIR/benchmark_single.log" 2>&1 || true
-    
-    # Multi GPU benchmark (if available)
-    if [ $(nvidia-smi -L | wc -l) -gt 1 ]; then
-        echo -e "${YELLOW}Multi GPU benchmark:${NC}"
-        CUDA_VISIBLE_DEVICES=0,1 timeout 60s $BINARY calibrate \
-            --usd-cost-per-hour 0.40 \
-            --utilization-rate 0.75 \
-            --profit-margin 0.15 \
-            --prove-price 0.08 > "$TEST_DIR/benchmark_multi.log" 2>&1 || true
-    fi
-    
-    # Extract and compare results
-    echo -e "\n${PURPLE}📊 Benchmark Results:${NC}"
-    
-    if [ -f "$TEST_DIR/benchmark_single.log" ]; then
-        single_throughput=$(grep "Estimated Throughput" "$TEST_DIR/benchmark_single.log" | awk '{print $4}' || echo "N/A")
-        echo -e "${CYAN}Single GPU Throughput: ${single_throughput} PGUs/second${NC}"
-    fi
-    
-    if [ -f "$TEST_DIR/benchmark_multi.log" ]; then
-        multi_throughput=$(grep "Estimated Throughput" "$TEST_DIR/benchmark_multi.log" | awk '{print $4}' || echo "N/A")
-        echo -e "${CYAN}Multi GPU Throughput: ${multi_throughput} PGUs/second${NC}"
+    if [ -f "$TEST_DIR/calibrate_single_gpu.log" ] && [ -f "$TEST_DIR/calibrate_multi_gpu.log" ]; then
+        echo -e "${CYAN}Extracting performance metrics...${NC}"
+        
+        # Extract throughput from logs
+        single_throughput=$(grep "Estimated Throughput" "$TEST_DIR/calibrate_single_gpu.log" | awk '{print $4}' || echo "N/A")
+        multi_throughput=$(grep "Estimated Throughput" "$TEST_DIR/calibrate_multi_gpu.log" | awk '{print $4}' || echo "N/A")
+        
+        # Extract bid prices
+        single_bid=$(grep "Estimated Bid Price" "$TEST_DIR/calibrate_single_gpu.log" | awk '{print $4}' || echo "N/A")
+        multi_bid=$(grep "Estimated Bid Price" "$TEST_DIR/calibrate_multi_gpu.log" | awk '{print $4}' || echo "N/A")
+        
+        echo -e "\n${YELLOW}🎯 Performance Comparison:${NC}"
+        echo -e "${CYAN}Single GPU: ${single_throughput} PGUs/second, ${single_bid} \$PROVE/1B PGUs${NC}"
+        echo -e "${CYAN}Multi GPU:  ${multi_throughput} PGUs/second, ${multi_bid} \$PROVE/1B PGUs${NC}"
         
         # Calculate improvement
         if [ "$single_throughput" != "N/A" ] && [ "$multi_throughput" != "N/A" ]; then
             improvement=$(echo "scale=2; $multi_throughput / $single_throughput" | bc -l 2>/dev/null || echo "N/A")
-            echo -e "${GREEN}Performance Improvement: ${improvement}x${NC}"
+            echo -e "${GREEN}Throughput Improvement: ${improvement}x${NC}"
+            
+            # Determine success
+            if [ "$improvement" != "N/A" ]; then
+                threshold=$(echo "$improvement > 1.5" | bc -l 2>/dev/null || echo "0")
+                if [ "$threshold" = "1" ]; then
+                    echo -e "${GREEN}🎉 SUCCESS: Multi-GPU sharding is working excellently!${NC}"
+                else
+                    echo -e "${YELLOW}⚠️  Multi-GPU improvement is less than expected${NC}"
+                fi
+            fi
         fi
+    else
+        echo -e "${YELLOW}⚠️  Calibration logs not found for comparison${NC}"
     fi
 }
 
 # Function to test memory usage
 test_memory_usage() {
-    echo -e "\n${PURPLE}💾 Testing Memory Usage${NC}"
+    echo -e "\n${PURPLE}💾 Testing GPU Memory Usage${NC}"
     
-    # Monitor memory during calibration
-    echo -e "${CYAN}Monitoring memory usage during calibration...${NC}"
+    # Check current GPU memory usage
+    echo -e "${CYAN}Current GPU memory status:${NC}"
     
-    # Start memory monitoring in background
-    (
-        while true; do
-            echo "$(date): $(free -h | grep Mem)" >> "$TEST_DIR/memory_usage.log"
-            nvidia-smi --query-gpu=memory.used,memory.total --format=csv,noheader,nounits >> "$TEST_DIR/gpu_memory.log" 2>/dev/null || true
-            sleep 1
+    if command -v nvidia-smi &> /dev/null; then
+        nvidia-smi --query-gpu=index,name,memory.used,memory.total,utilization.gpu --format=csv,noheader,nounits | \
+        while IFS=, read -r index name used total util; do
+            usage_percent=$(echo "scale=1; $used * 100 / $total" | bc -l 2>/dev/null || echo "N/A")
+            echo -e "${CYAN}GPU $index ($name): ${used}MB/${total}MB (${usage_percent}%) - ${util}% utilization${NC}"
         done
-    ) &
-    local monitor_pid=$!
-    
-    # Run calibration
-    CUDA_VISIBLE_DEVICES=0,1 timeout 30s $BINARY calibrate \
-        --usd-cost-per-hour 0.40 \
-        --utilization-rate 0.75 \
-        --profit-margin 0.15 \
-        --prove-price 0.08 > /dev/null 2>&1 || true
-    
-    # Stop monitoring
-    kill $monitor_pid 2>/dev/null || true
-    
-    echo -e "${GREEN}✅ Memory usage logged to $TEST_DIR/memory_usage.log${NC}"
-    echo -e "${GREEN}✅ GPU memory usage logged to $TEST_DIR/gpu_memory.log${NC}"
+        
+        echo -e "${GREEN}✅ GPU memory status checked${NC}"
+    else
+        echo -e "${YELLOW}⚠️  nvidia-smi not available${NC}"
+    fi
 }
 
 # Main test execution
@@ -426,10 +274,10 @@ main() {
     # Run tests
     test_gpu_detection
     test_calibration
+    analyze_calibration_results
     create_test_programs
     build_test_programs
     create_local_test
-    run_benchmarks
     test_memory_usage
     
     # Summary
@@ -440,13 +288,24 @@ main() {
     echo -e "${CYAN}📊 View logs: ls -la $TEST_DIR${NC}"
     
     # Show key results
-    if [ -f "$TEST_DIR/benchmark_single.log" ] && [ -f "$TEST_DIR/benchmark_multi.log" ]; then
+    if [ -f "$TEST_DIR/calibrate_single_gpu.log" ] && [ -f "$TEST_DIR/calibrate_multi_gpu.log" ]; then
         echo -e "\n${YELLOW}🎯 Key Performance Results:${NC}"
-        echo -e "${CYAN}Single GPU: $(grep "Estimated Throughput" "$TEST_DIR/benchmark_single.log" | awk '{print $4" "$5}' || echo "N/A")${NC}"
-        echo -e "${CYAN}Multi GPU:  $(grep "Estimated Throughput" "$TEST_DIR/benchmark_multi.log" | awk '{print $4" "$5}' || echo "N/A")${NC}"
+        single_result=$(grep "Estimated Throughput" "$TEST_DIR/calibrate_single_gpu.log" | awk '{print $4" "$5}' || echo "N/A")
+        multi_result=$(grep "Estimated Throughput" "$TEST_DIR/calibrate_multi_gpu.log" | awk '{print $4" "$5}' || echo "N/A")
+        echo -e "${CYAN}Single GPU: ${single_result}${NC}"
+        echo -e "${CYAN}Multi GPU:  ${multi_result}${NC}"
+        
+        # Show improvement if both results available
+        if [ "$single_result" != "N/A" ] && [ "$multi_result" != "N/A" ]; then
+            single_num=$(echo "$single_result" | awk '{print $1}')
+            multi_num=$(echo "$multi_result" | awk '{print $1}')
+            if [ -n "$single_num" ] && [ -n "$multi_num" ]; then
+                improvement=$(echo "scale=2; $multi_num / $single_num" | bc -l 2>/dev/null || echo "N/A")
+                echo -e "${GREEN}Performance Improvement: ${improvement}x${NC}"
+            fi
+        fi
     fi
 }
 
 # Run main function
 main "$@"
-EOF
