@@ -100,7 +100,9 @@ install_system_deps() {
         libgrpc++-dev \
         libgrpc-dev \
         nodejs \
-        npm
+        npm \
+        docker.io \
+        docker-compose
     
     # Install grpc tools via npm as fallback
     print_status "Installing grpc tools via npm..."
@@ -108,6 +110,22 @@ install_system_deps() {
         npm install -g grpc-tools
     else
         print_warning "npm not found, skipping grpc-tools installation"
+    fi
+    
+    # Setup Docker
+    print_status "Setting up Docker..."
+    sudo systemctl enable docker
+    sudo systemctl start docker
+    
+    # Add user to docker group
+    print_status "Adding user to docker group..."
+    sudo usermod -aG docker $USER
+    
+    # Test Docker installation
+    if docker --version >/dev/null 2>&1; then
+        print_success "Docker installed successfully: $(docker --version)"
+    else
+        print_warning "Docker installation may need manual verification"
     fi
     
     print_success "System dependencies installed"
@@ -132,6 +150,123 @@ install_rust() {
     rustup component add rust-std
     
     print_success "Rust setup completed"
+}
+
+# Function to install SP1 zkVM
+install_sp1() {
+    print_status "Installing SP1 zkVM..."
+    
+    # Check if sp1up is already installed
+    if command_exists sp1up; then
+        print_success "sp1up already installed"
+    else
+        print_status "Installing sp1up (SP1 toolchain installer)..."
+        curl -L https://sp1up.succinct.xyz | bash
+        
+        # Source the environment to make sp1up available
+        if [ -f ~/.bashrc ]; then
+            source ~/.bashrc
+        fi
+        if [ -f ~/.zshrc ]; then
+            source ~/.zshrc
+        fi
+        
+        # Add to PATH if not already there
+        export PATH="$HOME/.sp1/bin:$PATH"
+    fi
+    
+    # Install SP1 toolchain and cargo prove CLI
+    print_status "Installing SP1 toolchain and cargo prove CLI..."
+    
+    # Check for GitHub token to avoid rate limiting
+    SP1UP_ARGS=""
+    if [ -n "${GITHUB_TOKEN:-}" ]; then
+        print_status "Using GitHub token to avoid rate limiting..."
+        SP1UP_ARGS="--token $GITHUB_TOKEN"
+    elif [ -n "${GH_TOKEN:-}" ]; then
+        print_status "Using GitHub token to avoid rate limiting..."
+        SP1UP_ARGS="--token $GH_TOKEN"
+    else
+        print_warning "No GitHub token found. If you experience rate limiting, set GITHUB_TOKEN environment variable."
+    fi
+    
+    if command_exists sp1up; then
+        sp1up $SP1UP_ARGS
+    else
+        print_warning "sp1up not found in PATH, trying direct installation..."
+        if [ -f "$HOME/.sp1/bin/sp1up" ]; then
+            "$HOME/.sp1/bin/sp1up" $SP1UP_ARGS
+        else
+            print_error "Failed to install SP1. Please run the installation manually:"
+            print_error "curl -L https://sp1up.succinct.xyz | bash"
+            print_error "Then run: sp1up"
+            print_error "If you experience rate limiting, use: sp1up --token YOUR_GITHUB_TOKEN"
+            return 1
+        fi
+    fi
+    
+    # Verify installation
+    print_status "Verifying SP1 installation..."
+    
+    # Check cargo prove
+    if command_exists cargo-prove || cargo prove --version >/dev/null 2>&1; then
+        print_success "cargo prove CLI installed successfully"
+        cargo prove --version
+    else
+        print_warning "cargo prove not found, attempting to source environment..."
+        source ~/.cargo/env
+        if cargo prove --version >/dev/null 2>&1; then
+            print_success "cargo prove CLI installed successfully"
+            cargo prove --version
+        else
+            print_error "Failed to verify cargo prove installation"
+        fi
+    fi
+    
+    # Check Succinct Rust toolchain
+    if RUSTUP_TOOLCHAIN=succinct cargo --version >/dev/null 2>&1; then
+        print_success "Succinct Rust toolchain installed successfully"
+        RUSTUP_TOOLCHAIN=succinct cargo --version
+    else
+        print_warning "Succinct Rust toolchain verification failed"
+        print_status "Available toolchains:"
+        rustup toolchain list
+    fi
+    
+    print_success "SP1 zkVM setup completed"
+}
+
+# Function to test SP1 installation
+test_sp1() {
+    print_status "Testing SP1 installation..."
+    
+    # Test cargo prove
+    if cargo prove --version >/dev/null 2>&1; then
+        print_success "cargo prove test passed"
+        cargo prove --version
+    else
+        print_error "cargo prove test failed"
+        return 1
+    fi
+    
+    # Test Succinct toolchain
+    if RUSTUP_TOOLCHAIN=succinct cargo --version >/dev/null 2>&1; then
+        print_success "Succinct toolchain test passed"
+        RUSTUP_TOOLCHAIN=succinct cargo --version
+    else
+        print_error "Succinct toolchain test failed"
+        return 1
+    fi
+    
+    # Test alternative syntax
+    if cargo +succinct --version >/dev/null 2>&1; then
+        print_success "Alternative Succinct toolchain syntax test passed"
+        cargo +succinct --version
+    else
+        print_warning "Alternative Succinct toolchain syntax test failed"
+    fi
+    
+    print_success "SP1 installation tests completed"
 }
 
 # Function to install CUDA
@@ -166,6 +301,10 @@ install_cuda() {
 export PATH=/usr/local/cuda/bin:\$PATH
 export LD_LIBRARY_PATH=/usr/local/cuda/lib64:\$LD_LIBRARY_PATH
 export CUDA_HOME=/usr/local/cuda
+
+# SP1 Environment
+export PATH="\$HOME/.sp1/bin:\$PATH"
+export PATH="\$HOME/.cargo/bin:\$PATH"
 EOF
 
     # Source environment
@@ -392,11 +531,13 @@ display_setup_summary() {
     echo "• Source code cleaned"
     echo "• System dependencies installed"
     echo "• Rust installed and configured"
+    echo "• SP1 zkVM installed and verified"
     echo "• CUDA 12.5+ installed"
     echo "• Cargo configuration optimized"
     echo "• System limits increased"
     echo "• ShardedProver built successfully"
     echo "• Binary tested and verified"
+    echo "• SP1 installation tested"
     echo "• Deployment scripts created"
     echo ""
     echo "Supported GPU Types:"
@@ -411,11 +552,18 @@ display_setup_summary() {
     echo "1. Deploy: ./deploy.sh <server-ip>"
     echo "2. Test: ./test.sh <server-ip>"
     echo "3. Run: export GPU_TYPE=rtx4090 && ./spn-node prove ..."
+    echo "4. Test SP1: cargo prove --version"
+    echo "5. Create SP1 program: cargo prove new my-program"
     echo ""
     echo "Environment variables set:"
     echo "• CUDA_HOME=/usr/local/cuda"
-    echo "• PATH includes CUDA binaries"
+    echo "• PATH includes CUDA binaries and SP1 tools"
     echo "• LD_LIBRARY_PATH includes CUDA libraries"
+    echo ""
+    echo "SP1 zkVM Tools Available:"
+    echo "• cargo prove - SP1 CLI tool for compiling and proving"
+    echo "• Succinct Rust toolchain (riscv32im-succinct-zkvm-elf)"
+    echo "• sp1up - SP1 toolchain installer and updater"
     echo ""
 }
 
@@ -429,12 +577,13 @@ main() {
     echo "1. Clean source code"
     echo "2. Install system dependencies"
     echo "3. Install Rust"
-    echo "4. Install CUDA 12.5+"
-    echo "5. Fix Cargo configuration"
-    echo "6. Increase system limits"
-    echo "7. Build ShardedProver"
-    echo "8. Test binary"
-    echo "9. Create deployment scripts"
+    echo "4. Install SP1 zkVM"
+    echo "5. Install CUDA 12.5+"
+    echo "6. Fix Cargo configuration"
+    echo "7. Increase system limits"
+    echo "8. Build ShardedProver"
+    echo "9. Test binary and SP1"
+    echo "10. Create deployment scripts"
     echo ""
     
     
@@ -448,25 +597,35 @@ main() {
             print_status "Installing dependencies only..."
             install_system_deps
             install_rust
+            install_sp1
             install_cuda
             fix_cargo_config
             increase_system_limits
+            ;;
+        "sp1")
+            print_status "Installing SP1 zkVM only..."
+            install_rust
+            install_sp1
+            test_sp1
             ;;
         "build")
             print_status "Building only..."
             build_sharded_prover
             test_binary
+            test_sp1
             ;;
         "all")
             print_status "Running complete setup..."
             clean_source
             install_system_deps
             install_rust
+            install_sp1
             install_cuda
             fix_cargo_config
             increase_system_limits
             build_sharded_prover
             test_binary
+            test_sp1
             create_deployment_scripts
             ;;
         "help")
@@ -474,10 +633,20 @@ main() {
             echo ""
             echo "Commands:"
             echo "  clean   - Clean source code only"
-            echo "  deps    - Install dependencies only"
-            echo "  build   - Build ShardedProver only"
+            echo "  deps    - Install dependencies only (includes SP1)"
+            echo "  sp1     - Install SP1 zkVM only"
+            echo "  build   - Build ShardedProver only (includes SP1 tests)"
             echo "  all     - Complete setup (default)"
             echo "  help    - Show this help"
+            echo ""
+            echo "Environment Variables:"
+            echo "  GITHUB_TOKEN - GitHub token to avoid rate limiting during SP1 installation"
+            echo "  GH_TOKEN     - Alternative GitHub token variable"
+            echo ""
+            echo "Examples:"
+            echo "  $0                           # Complete setup"
+            echo "  $0 sp1                       # Install SP1 only"
+            echo "  GITHUB_TOKEN=xxx $0 sp1      # Install SP1 with GitHub token"
             echo ""
             exit 0
             ;;
