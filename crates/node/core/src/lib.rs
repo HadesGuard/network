@@ -9,9 +9,15 @@
 
 mod serial;
 mod sharded;
+mod cuda_optimizations;
+mod monitoring;
+mod memory_optimizer;
 
 pub use serial::*;
 pub use sharded::*;
+pub use cuda_optimizations::*;
+pub use monitoring::*;
+pub use memory_optimizer::*;
 
 use std::{
     sync::Arc,

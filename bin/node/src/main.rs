@@ -238,7 +238,7 @@ async fn main() -> Result<()> {
                 ShardingConfig::default()
             };
             
-            let prover = ShardedProver::new(config)?;
+            let prover = ShardedProver::new_sync(config)?;
 
             // Setup the monitor.
             let monitor = SerialMonitor::new();
