@@ -1,0 +1,32 @@
+[package]
+name = "spn-node"
+version = { workspace = true }
+edition = { workspace = true }
+publish = false
+
+[build-dependencies]
+sp1-build = { workspace = true }
+
+[dependencies]
+# sp1
+sp1-sdk = { workspace = true }
+
+# spn
+spn-calibrator = { workspace = true }
+spn-node-core = { workspace = true }
+spn-network-types = { workspace = true }
+spn-utils = { workspace = true }
+spn-rpc = { workspace = true }
+
+# alloy
+alloy-primitives = { workspace = true }
+alloy-signer-local = { workspace = true }
+
+# misc
+anyhow = { workspace = true}
+clap = { version = "4.0", features = ["derive"] }
+rustls = { workspace = true, features = ["ring"] }
+tabled = "0.15"
+tokio = { workspace = true, features = ["full"] }
+tonic = { workspace = true , features = ["tls", "tls-roots", "gzip"] }
+tracing = { workspace = true }

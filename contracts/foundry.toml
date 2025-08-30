@@ -1,0 +1,32 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+solc = '0.8.28'
+fs_permissions = [
+	{ access = "read", path = "./out" },
+	{ access = "read", path = "./fixtures" },
+	{ access = "read-write", path = "./deployments" },
+]
+
+[lint]
+lint_on_build = false
+exclude_lints = ["mixed-case-variable", "mixed-case-function", "screaming-snake-case-immutable", "unwrapped-modifier-logic"]
+
+[profile.deploy]
+optimizer = true
+optimizer_runs = 100
+
+[profile.fuzz]
+optimizer = true
+optimizer_runs = 100
+runs = 10000
+seed = "0x1234"
+
+[fmt]
+line_length = 100
+tab_width = 4
+func_attrs_with_params_multiline = true
+ignore = ["lib/**"]
+
+# See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options

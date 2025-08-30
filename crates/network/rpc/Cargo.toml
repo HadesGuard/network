@@ -1,0 +1,28 @@
+[package]
+name = "spn-rpc"
+description = "Artifact management and storage for SPN."
+version = { workspace = true }
+edition = { workspace = true }
+keywords = { workspace = true }
+categories = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+
+[dependencies]
+# spn
+spn-network-types = { path = "../../types/network", features = ["network"] }
+
+# alloy
+alloy-primitives = { workspace = true }
+
+# misc
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+backoff = { workspace = true }
+hex = { workspace = true }
+bytes = { workspace = true }
+prost = { workspace = true }
+serde = { workspace = true }
+tokio = { workspace = true }
+tonic = { workspace = true }
+tracing = { workspace = true }

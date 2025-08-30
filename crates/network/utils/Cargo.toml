@@ -1,0 +1,20 @@
+[package]
+name = "spn-utils"
+description = "Common utilities and helper functions for SPN."
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+keywords = { workspace = true }
+categories = { workspace = true }
+
+[dependencies]
+# alloy
+alloy-primitives = { workspace = true }
+alloy-sol-types = { workspace = true }
+
+# misc
+anyhow = { workspace = true }
+serde = { workspace = true }
+tracing-subscriber = { workspace = true }
+tracing = { workspace = true }
