@@ -1,0 +1,11 @@
+[package]
+name = "test-medium-program"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+sp1-zkvm = { version = "3.0.0" }
+
+[[bin]]
+name = "test-medium-program"
+path = "src/main.rs"
