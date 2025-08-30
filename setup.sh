@@ -219,6 +219,7 @@ install_docker() {
     
     print_warning "You may need to log out and back in for Docker group changes to take effect"
     print_success "Docker installation completed"
+}
 
 # Function to install Rust
 install_rust() {
