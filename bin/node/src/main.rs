@@ -9,7 +9,7 @@ use tabled::{settings::Style, Table, Tabled};
 use tracing::info;
 
 use sp1_sdk::{include_elf, SP1Stdin};
-use spn_calibrator::{Calibrator, SinglePassCalibrator};
+use spn_calibrator::{Calibrator, SinglePassCalibrator, ShardedCalibrator};
 use spn_network_types::prover_network_client::ProverNetworkClient;
 use spn_node_core::{Node, NodeContext, SerialBidder, SerialContext, SerialMonitor, ShardedProver, ShardingConfig};
 
@@ -146,15 +146,29 @@ async fn main() -> Result<()> {
                 std::env::var("GPU_TYPE").unwrap_or_else(|_| "auto-detect".to_string())
             );
             
-            let calibrator = SinglePassCalibrator::new(
-                SPN_FIBONACCI_ELF.to_vec(),
-                stdin,
-                args.usd_cost_per_hour,
-                args.utilization_rate,
-                args.profit_margin,
-            );
-            let metrics =
-                calibrator.calibrate().map_err(|e| anyhow!("failed to calibrate: {}", e))?;
+            // Use ShardedCalibrator for multi-GPU calibration
+            let calibrator = if config.num_gpus > 1 {
+                println!("Using multi-GPU calibration with {} GPUs", config.num_gpus);
+                ShardedCalibrator::new(
+                    SPN_FIBONACCI_ELF.to_vec(),
+                    stdin,
+                    args.usd_cost_per_hour,
+                    args.utilization_rate,
+                    args.profit_margin,
+                    config.num_gpus,
+                ).calibrate().map_err(|e| anyhow!("failed to calibrate: {}", e))?
+            } else {
+                println!("Using single-GPU calibration");
+                SinglePassCalibrator::new(
+                    SPN_FIBONACCI_ELF.to_vec(),
+                    stdin,
+                    args.usd_cost_per_hour,
+                    args.utilization_rate,
+                    args.profit_margin,
+                ).calibrate().map_err(|e| anyhow!("failed to calibrate: {}", e))?
+            };
+            
+            let metrics = calibrator;
 
             // Create a table for the calibration results.
             #[derive(Tabled)]
