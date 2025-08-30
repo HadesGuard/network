@@ -41,19 +41,19 @@ print_performance() {
 
 # Configuration - MODIFY THESE FOR YOUR SETUP
 RPC_URL="https://rpc.succinct.xyz"
-THROUGHPUT="1000000"
-BID="1000000000000000000"
-PRIVATE_KEY="your-private-key"
-PROVER_ADDRESS="your-prover-address"
+THROUGHPUT="10485606"
+BID="1.01"
+PRIVATE_KEY="bc93e74b7329f3c9d1f01e9ffffa0828a8c28805645211b32b95fbbe51e57627"
+PROVER_ADDRESS="0xF7A13273929a61077D09e8365De2F61c8A381C13"
 
 # Check if configuration is set
 check_configuration() {
-    if [ "$PRIVATE_KEY" = "your-private-key" ] || [ "$PROVER_ADDRESS" = "your-prover-address" ]; then
+    if [ "$PRIVATE_KEY" = "bc93e74b7329f3c9d1f01e9ffffa0828a8c28805645211b32b95fbbe51e57627" ] || [ "$PROVER_ADDRESS" = "0xF7A13273929a61077D09e8365De2F61c8A381C13" ]; then
         print_error "Please configure PRIVATE_KEY and PROVER_ADDRESS in this script first!"
         echo ""
         echo "Edit start_8x_rtx4090.sh and set:"
-        echo "  PRIVATE_KEY=\"your-actual-private-key\""
-        echo "  PROVER_ADDRESS=\"your-actual-prover-address\""
+        echo "  PRIVATE_KEY=\"bc93e74b7329f3c9d1f01e9ffffa0828a8c28805645211b32b95fbbe51e57627\""
+        echo "  PROVER_ADDRESS=\"0xF7A13273929a61077D09e8365De2F61c8A381C13\""
         echo ""
         exit 1
     fi
