@@ -75,11 +75,20 @@ detect_8x_rtx4090() {
     local total_memory=0
     local total_free_memory=0
     
+    # Debug: Show raw nvidia-smi output
+    echo "Debug: Raw nvidia-smi output:"
+    nvidia-smi --query-gpu=index,name,memory.total,memory.free,utilization.gpu,temperature.gpu \
+               --format=csv,noheader,nounits | head -3
+    echo ""
+    
     # Get GPU info line by line
     for ((i=0; i<gpu_count; i++)); do
         local gpu_info
         gpu_info=$(nvidia-smi --query-gpu=index,name,memory.total,memory.free,utilization.gpu,temperature.gpu \
                    --format=csv,noheader,nounits | sed -n "$((i+1))p")
+        
+        # Debug: Show raw line
+        echo "Debug: Raw line $((i+1)): '$gpu_info'"
         
         # Parse the line
         local index name memory_total memory_free utilization temp
@@ -93,8 +102,17 @@ detect_8x_rtx4090() {
         utilization=$(echo "$utilization" | tr -d ' ')
         temp=$(echo "$temp" | tr -d ' ')
         
-        # Check if it's RTX 4090
-        if [[ "$name" == *"RTX 4090"* ]]; then
+        # Debug: Show parsed values
+        echo "Debug: Parsed - index:'$index', name:'$name', memory_total:'$memory_total'"
+        
+        # Check if it's RTX 4090 (more flexible matching)
+        if [[ "$name" == *"RTX"* && "$name" == *"4090"* ]]; then
+            echo "GPU $index: $name ✅ (RTX 4090)"
+            rtx4090_count=$((rtx4090_count + 1))
+        elif [[ "$name" == *"GeForce"* && "$name" == *"4090"* ]]; then
+            echo "GPU $index: $name ✅ (RTX 4090)"
+            rtx4090_count=$((rtx4090_count + 1))
+        elif [[ "$name" == *"4090"* ]]; then
             echo "GPU $index: $name ✅ (RTX 4090)"
             rtx4090_count=$((rtx4090_count + 1))
         else
