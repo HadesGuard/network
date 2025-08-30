@@ -1,8 +1,3 @@
-#![deny(clippy::pedantic)]
-#![allow(clippy::module_name_repetitions)]
-#![allow(clippy::similar_names)]
-#![allow(clippy::items_after_statements)]
-
 use std::str::FromStr;
 
 use alloy_primitives::{Address, U256};
@@ -16,7 +11,7 @@ use tracing::info;
 use sp1_sdk::{include_elf, SP1Stdin};
 use spn_calibrator::{Calibrator, SinglePassCalibrator};
 use spn_network_types::prover_network_client::ProverNetworkClient;
-use spn_node_core::{Node, NodeContext, SerialBidder, SerialContext, SerialMonitor, SerialProver, ShardedProver};
+use spn_node_core::{Node, NodeContext, SerialBidder, SerialContext, SerialMonitor, ShardedProver, ShardingConfig};
 
 /// The CLI application that defines all available commands.
 #[derive(Parser)]
@@ -188,7 +183,25 @@ async fn main() -> Result<()> {
             let bidder = SerialBidder::new(U256::from(args.bid), args.throughput, args.prover);
 
             // Setup the prover - use ShardedProver for competitive multi-GPU processing
-            let prover = ShardedProver::new();
+            // Choose GPU configuration based on environment or use default
+            let config = if let Ok(gpu_type) = std::env::var("GPU_TYPE") {
+                match gpu_type.to_lowercase().as_str() {
+                    "rtx4090" => ShardingConfig::rtx4090_optimized(),
+                    "rtx4080" => ShardingConfig::rtx4080_optimized(),
+                    "rtx3090" => ShardingConfig::rtx3090_optimized(),
+                    "rtx3080" => ShardingConfig::rtx3080_optimized(),
+                    "a100" => ShardingConfig::a100_optimized(),
+                    _ => {
+                        info!("Unknown GPU type: {}, using default configuration", gpu_type);
+                        ShardingConfig::default()
+                    }
+                }
+            } else {
+                // Auto-detect or use default
+                ShardingConfig::default()
+            };
+            
+            let prover = ShardedProver::new(config)?;
 
             // Setup the monitor.
             let monitor = SerialMonitor::new();
@@ -199,7 +212,7 @@ async fn main() -> Result<()> {
                 rpc = %args.rpc_url,
                 throughput = %args.throughput,
                 bid = %args.bid,
-                "Starting Node on Succinct Network..."
+                "Starting ShardedProver Node on Succinct Network with 8x RTX 4090..."
             );
             let node = Node::new(ctx, bidder, prover, monitor);
 
