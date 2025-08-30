@@ -230,15 +230,44 @@ install_cuda_dependencies() {
         echo "3. Set CUDA environment variables"
     fi
     
-    # Install CUDA development libraries
-    apt install -y \
-        nvidia-cuda-toolkit \
-        nvidia-cuda-dev \
-        nvidia-cuda-gdb \
-        nvidia-cuda-doc \
-        nvidia-cuda-samples
+    # Install CUDA development libraries (with error handling)
+    print_status "Installing CUDA packages..."
+    
+    # Try to install available packages
+    local cuda_packages=(
+        "nvidia-cuda-toolkit"
+        "nvidia-cuda-dev"
+        "nvidia-cuda-gdb"
+    )
+    
+    # Check which packages are available
+    for package in "${cuda_packages[@]}"; do
+        if apt-cache show "$package" >/dev/null 2>&1; then
+            print_status "Installing $package..."
+            apt install -y "$package" || print_warning "Failed to install $package"
+        else
+            print_warning "Package $package not available"
+        fi
+    done
+    
+    # Try to install documentation package
+    if apt-cache show "nvidia-cuda-toolkit-doc" >/dev/null 2>&1; then
+        print_status "Installing nvidia-cuda-toolkit-doc..."
+        apt install -y nvidia-cuda-toolkit-doc || print_warning "Failed to install nvidia-cuda-toolkit-doc"
+    else
+        print_warning "nvidia-cuda-toolkit-doc not available"
+    fi
+    
+    # Try to install samples if available
+    if apt-cache show "nvidia-cuda-samples" >/dev/null 2>&1; then
+        print_status "Installing nvidia-cuda-samples..."
+        apt install -y nvidia-cuda-samples || print_warning "Failed to install nvidia-cuda-samples"
+    else
+        print_warning "nvidia-cuda-samples not available"
+    fi
     
     # Set CUDA environment variables
+    print_status "Setting CUDA environment variables..."
     cat >> ~/.bashrc << EOF
 
 # 8x RTX 4090 CUDA Environment
@@ -254,6 +283,18 @@ export CUDA_UNIFIED_MEMORY=1
 export CUDA_PEER_MEMORY_POOL_SIZE=0
 EOF
 
+    # Check if CUDA is working
+    if command_exists nvcc; then
+        print_success "CUDA toolkit found: $(nvcc --version | head -1)"
+    else
+        print_warning "CUDA toolkit not found. You may need to install it manually."
+        print_status "To install CUDA manually:"
+        echo "1. Visit: https://developer.nvidia.com/cuda-downloads"
+        echo "2. Select your Linux distribution"
+        echo "3. Follow installation instructions"
+        echo "4. Restart this script after installation"
+    fi
+    
     print_success "CUDA dependencies configured"
 }
 
